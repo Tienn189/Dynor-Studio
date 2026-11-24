@@ -1,0 +1,40 @@
+workflows:
+  dynor-studio-unsigned:
+    name: Dynor Studio | Unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    environment:
+      xcode: latest
+      vars:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    scripts:
+      - name: Extract the Studio source
+        script: |
+          set -euo pipefail
+          STUDIO_SOURCE_DIR="$(mktemp -d)"
+          unzip -q "$CM_BUILD_DIR/Dynor-Studio-IOS-source.zip" -d "$STUDIO_SOURCE_DIR"
+          test -f "$STUDIO_SOURCE_DIR/project.yml"
+          test -f "$STUDIO_SOURCE_DIR/scripts/build-unsigned.sh"
+          printf 'STUDIO_SOURCE_DIR=%s\n' "$STUDIO_SOURCE_DIR" >> "$CM_ENV"
+          mkdir -p "$CM_BUILD_DIR/build/logs"
+      - name: Install XcodeGen
+        script: |
+          set -euo pipefail
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen --version
+          xcodebuild -version
+      - name: Build the unsigned iOS IPA
+        script: |
+          set -euo pipefail
+          bash "$STUDIO_SOURCE_DIR/scripts/build-unsigned.sh" "$CM_BUILD_DIR/build/ipa" \
+            2>&1 | tee "$CM_BUILD_DIR/build/logs/xcodebuild.log"
+    artifacts:
+      - build/ipa/Dynor-Studio-unsigned.ipa
+      - build/logs/xcodebuild.log
